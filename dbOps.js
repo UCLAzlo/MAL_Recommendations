@@ -99,9 +99,29 @@ const insertList = (user, list) => {
 // Retrieve user's completed anime list
 //
 const selectUserAnime = user => {
-    const queryText = `SELECT * FROM userlist WHERE username=$1
-        VALUES ($1);`;
+    const queryText = `SELECT * FROM userlist WHERE username = $1;`;
     const values = [user];
+    return pool.query(queryText, values);
+};
+
+//
+// Retrieve user's completed anime list
+//
+const insertAnime = anime => {
+    // let anime = JSON.parse(animeJSON);
+    const queryText = `INSERT INTO animelist VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
+    const values = [
+        anime.id,
+        anime.title,
+        anime.score,
+        anime.popularity,
+        anime.members,
+        anime.favorites,
+        anime.image,
+        anime.genres,
+        anime.recommendations
+    ];
+    console.log(values);
     return pool.query(queryText, values);
 };
 
@@ -111,5 +131,6 @@ module.exports = {
     dropTableList,
     dropTableAnime,
     insertList,
-    selectUserAnime
+    selectUserAnime,
+    insertAnime
 };
