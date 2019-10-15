@@ -91,7 +91,17 @@ const dropTableAnime = () => {
 const insertList = (user, list) => {
     const queryText = `INSERT INTO userlist
         VALUES ($1, $2);`;
-    const values = ["user", list];
+    const values = [user, list];
+    return pool.query(queryText, values);
+};
+
+//
+// Retrieve user's completed anime list
+//
+const selectUserAnime = user => {
+    const queryText = `SELECT * FROM userlist WHERE username=$1
+        VALUES ($1);`;
+    const values = [user];
     return pool.query(queryText, values);
 };
 
@@ -100,5 +110,6 @@ module.exports = {
     createTableAnime,
     dropTableList,
     dropTableAnime,
-    insertList
+    insertList,
+    selectUserAnime
 };

@@ -63,10 +63,21 @@ const retrieveUserAnimeList = user => {
         });
 };
 
+const populateAnimeDB = user => {
+    db.selectUserAnime(user)
+        .then(list => {
+            console.log(list);
+        })
+        .catch(err => {
+            console.log(err);
+        });
+};
+
 db.dropTableList();
 db.dropTableAnime();
 setTimeout(() => {
     db.createTableList();
     db.createTableAnime();
     retrieveUserAnimeList("ulazlo");
+    populateAnimeDB("ulazlo");
 }, 200);
