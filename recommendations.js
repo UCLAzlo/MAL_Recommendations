@@ -12,6 +12,7 @@ app.engine("handlebars", handlebars.engine);
 app.set("view engine", "handlebars");
 
 // Request-Promises and Rate Limiting
+// Rate-Limiting set to abide by MAL and Jikan Limits
 const rp = require("request-promise-native");
 const RateLimiter = require("request-rate-limiter");
 const limiter = new RateLimiter({
@@ -26,56 +27,11 @@ const limiter = new RateLimiter({
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 
-// Postgres
-const Pool = require("pg").Pool;
-
-// Env parameters
-const dotenv = require("dotenv");
-dotenv.config();
+//Postgres operations
+const db = require("./dbOps");
 
 // Port
 let port = process.env.PORT || 34567;
-
-const pool = new Pool({
-    user: "admin",
-    host: "localhost",
-    database: "animeDB",
-    password: process.env.DATABASE_PASSWD,
-    port: 5432
-});
-
-//
-// Create Tables to initialize
-//
-const createTables = () => {
-    const queryText = `CREATE TABLE IF NOT EXISTS
-        userList(
-        username VARCHAR(64) NOT NULL,
-        list JSONB NOT NULL
-    )`;
-
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
-};
-
-//
-// Drop all tables
-//
-const dropTables = () => {
-    const queryText = "DROP TABLE IF EXISTS userList";
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
-};
 
 //
 // Use Jikan API to retrieve user anime list
@@ -97,11 +53,7 @@ const retrieveUserAnimeList = user => {
                 });
             });
             animeJSON = JSON.stringify(allAnime);
-            const queryText = `INSERT INTO userlist
-                VALUES ($1, $2);`;
-            const values = ["user", animeJSON];
-            // VALUES ('${user}', '${animeJSON}');`;
-            return pool.query(queryText, values);
+            return db.insertList(user, animeJSON);
         })
         .then(res => {
             console.log(res);
@@ -111,8 +63,10 @@ const retrieveUserAnimeList = user => {
         });
 };
 
-dropTables();
+db.dropTableList();
+db.dropTableAnime();
 setTimeout(() => {
-    createTables();
+    db.createTableList();
+    db.createTableAnime();
     retrieveUserAnimeList("ulazlo");
 }, 200);

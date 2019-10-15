@@ -1,0 +1,15 @@
+Next Steps:
+	MVP:
+		Finish Backend Node
+			Iterate through list of anime
+			Populate DB of Anime and recommendations
+			Perform weightings
+			Provide Recommendations
+
+		Build Frontend to provide username
+	
+	Roadmap:
+		Add authentication requirement, tie into database
+		
+		Add Machine Learning to backend
+		
