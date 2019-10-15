@@ -82,34 +82,29 @@ const dropTables = () => {
 //
 const retrieveUserAnimeList = user => {
     let options = {
-        uri: "https://api.jikan.moe/v3/user/ulazlo/animelist/completed",
+        uri: "https://api.jikan.moe/v3/user/" + user + "/animelist/completed",
         json: true
     };
     limiter
         .request(options)
         .then(list => {
-            console.log(list.body);
             let allAnime = [];
             list.body.anime.forEach(anime => {
-                nextAnime = {
+                allAnime.push({
                     mal_id: anime.mal_id,
                     score: anime.score,
                     title: anime.title
-                };
-                allAnime.push(nextAnime);
-            });
-
-            animeJSON = JSON.stringify(allAnime);
-
-            const queryText = `INSERT INTO userlist
-                VALUES ('ulazlo', '${animeJSON}');`;
-            pool.query(queryText)
-                .then(res => {
-                    console.log(res);
-                })
-                .catch(err => {
-                    console.log(err);
                 });
+            });
+            animeJSON = JSON.stringify(allAnime);
+            const queryText = `INSERT INTO userlist
+                VALUES ($1, $2);`;
+            const values = ["user", animeJSON];
+            // VALUES ('${user}', '${animeJSON}');`;
+            return pool.query(queryText, values);
+        })
+        .then(res => {
+            console.log(res);
         })
         .catch(err => {
             console.log(err);
