@@ -57,26 +57,33 @@ const retrieveUserAnimeList = user => {
         })
         .then(res => {
             console.log(res);
-            // populateAnimeDB(user);
+            populateAnimeDB(user);
         })
         .catch(err => {
             console.log(err);
         });
 };
 
+//
+// Use Jikan API to populate anime database based on user anime list
+//
 const populateAnimeDB = user => {
+    //select user list from db
     db.selectUserAnime(user)
         .then(res => {
             let animeList = res.rows[0].list;
+            //for each anime in list, populate full details in anime db
             animeList.forEach(anime => {
+                let animeObject = {};
                 let options = {
                     uri: "https://api.jikan.moe/v3/anime/" + anime.mal_id,
                     json: true
                 };
+                //request general anime details and populate
                 limiter
                     .request(options)
                     .then(animeDetails => {
-                        let animeObject = {};
+                        // let animeObject = {};
                         animeObject["id"] = animeDetails.body.mal_id;
                         animeObject["title"] = animeDetails.body.title;
                         animeObject["score"] = animeDetails.body.score;
@@ -99,31 +106,27 @@ const populateAnimeDB = user => {
                                 "/recommendations",
                             json: true
                         };
-                        limiter
-                            .request(options)
-                            .then(recDetails => {
-                                let recs = [];
-                                recDetails.body.recommendations.forEach(rec => {
-                                    if (rec.recommendation_count > 10) {
-                                        recs.push({
-                                            mal_id: rec.mal_id,
-                                            count: rec.recommendation_count
-                                        });
-                                    }
+                        return limiter.request(options);
+                    })
+                    //populate user recommendations for each anime
+                    .then(recDetails => {
+                        let recs = [];
+                        recDetails.body.recommendations.forEach(rec => {
+                            //only keep recommendations with significant count
+                            if (rec.recommendation_count > 10) {
+                                recs.push({
+                                    mal_id: rec.mal_id,
+                                    count: rec.recommendation_count
                                 });
-                                let recsJSON = JSON.stringify(recs);
-                                animeObject["recommendations"] = recsJSON;
-
-                                // let animeJSON = JSON.stringify(animeObject);
-                                // console.log(animeJSON);
-                                return db.insertAnime(animeObject);
-                            })
-                            .then(res => {
-                                console.log(res);
-                            })
-                            .catch(err => {
-                                console.log(err);
-                            });
+                            }
+                        });
+                        let recsJSON = JSON.stringify(recs);
+                        animeObject["recommendations"] = recsJSON;
+                        return db.insertAnime(animeObject);
+                    })
+                    //store anime details into anime db
+                    .then(res => {
+                        console.log(res);
                     })
                     .catch(err => {
                         console.log(err);
@@ -135,11 +138,32 @@ const populateAnimeDB = user => {
         });
 };
 
+const getRecommendations = user => {
+    //select user list from db
+    db.selectUserAnime(user)
+        .then(res => {
+            let promises = [];
+            let animeList = res.rows[0].list;
+            animeList.forEach(anime => {
+                promises.push(db.selectSpecAnime(anime.mal_id));
+            });
+
+            return Promise.all(promises);
+        })
+        .then(res => {
+            console.log(res);
+        })
+        .catch(err => {
+            console.log(err);
+        });
+};
+
 // db.dropTableList();
-db.dropTableAnime();
+// db.dropTableAnime();
 setTimeout(() => {
     // db.createTableList();
     // retrieveUserAnimeList("uclazlo");
-    db.createTableAnime();
-    populateAnimeDB("uclazlo");
+    // db.createTableAnime();
+    // populateAnimeDB("uclazlo");
+    getRecommendations("uclazlo");
 }, 200);

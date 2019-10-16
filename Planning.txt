@@ -1,7 +1,6 @@
 Next Steps:
 	MVP:
 		Finish Backend Node
-			Iterate through list of anime
 			Populate DB of Anime and recommendations
 			Perform weightings
 			Provide Recommendations

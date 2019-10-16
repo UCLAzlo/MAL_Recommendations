@@ -107,9 +107,20 @@ const selectUserAnime = user => {
 //
 // Retrieve user's completed anime list
 //
+const selectSpecAnime = mal_id => {
+    console.log(mal_id);
+    const queryText = `SELECT * FROM animelist WHERE id = $1;`;
+    const values = [mal_id];
+    return pool.query(queryText, values);
+};
+
+//
+// Retrieve user's completed anime list
+//
 const insertAnime = anime => {
     // let anime = JSON.parse(animeJSON);
-    const queryText = `INSERT INTO animelist VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
+    const queryText = `INSERT INTO animelist VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+    ON CONFLICT DO NOTHING`;
     const values = [
         anime.id,
         anime.title,
@@ -132,5 +143,6 @@ module.exports = {
     dropTableAnime,
     insertList,
     selectUserAnime,
+    selectSpecAnime,
     insertAnime
 };
