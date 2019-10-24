@@ -22,14 +22,9 @@ const createTableList = () => {
         username VARCHAR(64) NOT NULL,
         list JSONB NOT NULL
     )`;
+    console.log("Made list table");
 
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
+    return pool.query(queryText);
 };
 
 //
@@ -47,14 +42,9 @@ const createTableAnime = () => {
         genres INT[] NOT NULL,
         recommendations JSONB
     )`;
+    console.log("Made anime table");
 
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
+    return pool.query(queryText);
 };
 
 //
@@ -62,13 +52,8 @@ const createTableAnime = () => {
 //
 const dropTableList = () => {
     const queryText = "DROP TABLE IF EXISTS userList";
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
+    console.log("drop list table");
+    return pool.query(queryText);
 };
 
 //
@@ -76,13 +61,8 @@ const dropTableList = () => {
 //
 const dropTableAnime = () => {
     const queryText = "DROP TABLE IF EXISTS animeList";
-    pool.query(queryText)
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
+    console.log("drop anime table");
+    return pool.query(queryText);
 };
 
 //
@@ -90,7 +70,7 @@ const dropTableAnime = () => {
 //
 const insertList = (user, list) => {
     const queryText = `INSERT INTO userlist
-        VALUES ($1, $2);`;
+        VALUES ($1, $2) ON CONFLICT username DO NOTHING;`;
     const values = [user, list];
     return pool.query(queryText, values);
 };
@@ -101,6 +81,7 @@ const insertList = (user, list) => {
 const selectUserAnime = user => {
     const queryText = `SELECT * FROM userlist WHERE username = $1;`;
     const values = [user];
+    console.log("SELECTING USER");
     return pool.query(queryText, values);
 };
 

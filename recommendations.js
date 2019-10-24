@@ -11,18 +11,6 @@ const handlebars = require("express-handlebars").create({
 app.engine("handlebars", handlebars.engine);
 app.set("view engine", "handlebars");
 
-// Request-Promises and Rate Limiting
-// Rate-Limiting set to abide by MAL and Jikan Limits
-const rp = require("request-promise-native");
-const RateLimiter = require("request-rate-limiter");
-const limiter = new RateLimiter({
-    rate: 10,
-    interval: 40,
-    backoffCode: 429,
-    backoffTime: 5,
-    maxWaitingTime: 12000
-});
-
 // body parser
 const bodyParser = require("body-parser");
 app.use(bodyParser.json());
@@ -30,208 +18,76 @@ app.use(bodyParser.json());
 //Postgres operations
 const db = require("./dbOps");
 
+//Mal operations and interact with DB
+const mal = require("./malOps.js");
+
 // Port
-let port = process.env.PORT || 34567;
+app.set("port", process.env.PORT || 34567);
 
 //
-// Use Jikan API to retrieve user anime list
+// Resets Postgres table
 //
-const retrieveUserAnimeList = user => {
-    let options = {
-        uri: "https://api.jikan.moe/v3/user/" + user + "/animelist/completed",
-        json: true
-    };
-    limiter
-        .request(options)
-        .then(list => {
-            let allAnime = [];
-            list.body.anime.forEach(anime => {
-                allAnime.push({
-                    mal_id: anime.mal_id,
-                    score: anime.score,
-                    title: anime.title
-                });
-            });
-            animeJSON = JSON.stringify(allAnime);
-            return db.insertList(user, animeJSON);
+app.get("/reset-table", function(req, res, next) {
+    db.dropTableList()
+        .then(resP => {
+            db.dropTableAnime();
         })
-        .then(res => {
-            console.log(res);
-            populateAnimeDB(user);
+        .then(resP => {
+            db.createTableList();
+        })
+        .then(resP => {
+            db.createTableAnime();
+        })
+        .then(resP => {
+            res.status(200);
+            res.send("Tables are reset");
         })
         .catch(err => {
-            console.log(err);
+            next(err);
         });
-};
+});
 
 //
-// Use Jikan API to populate anime database based on user anime list
+// Populate user
 //
-const populateAnimeDB = user => {
-    //select user list from db
-    let animeList = [];
-    db.selectUserAnime(user)
-        .then(res => {
-            animeList = res.rows[0].list;
-            let promises = [];
-            //for each anime in list, populate full details in anime db
-            animeList.forEach(anime => {
-                let options = {
-                    uri: "https://api.jikan.moe/v3/anime/" + anime.mal_id,
-                    json: true
-                };
-                promises.push(limiter.request(options));
-            });
-            return Promise.all(promises);
+app.post("/userAnime", function(req, res, next) {
+    mal.retrieveUserAnimeList(req.body.username)
+        .then(resP => {
+            return mal.populateAnimeDB(req.body.username);
         })
-        .then(animeListDetails => {
-            let promises = [];
-            animeListDetails.forEach(anime => {
-                let animeObject = {};
-                animeObject["id"] = anime.body.mal_id;
-                animeObject["title"] = anime.body.title;
-                animeObject["score"] = anime.body.score;
-                animeObject["popularity"] = anime.body.popularity;
-                animeObject["members"] = anime.body.members;
-                animeObject["favorites"] = anime.body.favorites;
-                animeObject["image"] = anime.body.image_url;
-
-                let objectGenres = [];
-                anime.body.genres.forEach(genre => {
-                    objectGenres.push(genre.mal_id);
-                });
-                animeObject["genres"] = objectGenres;
-
-                console.log(animeObject);
-
-                promises.push(db.insertAnime(animeObject));
-            });
-
-            return Promise.all(promises);
-        })
-        //request user recommendations for each anime
-        .then(res => {
-            let promises = [];
-            animeList.forEach(anime => {
-                promises.push(updateRecommendations(anime));
-            });
-            console.log(promises);
-            return Promise.all(promises);
-        })
-        .then(res => {
-            console.log(res);
+        .then(resP => {
+            console.log("Sending response");
+            res.status(200);
+            res.send(req.body.username + " Anime Details Finished Adding");
         })
         .catch(err => {
-            console.log(err);
+            next(err);
         });
-};
+});
 
-const updateRecommendations = anime => {
-    let options = {
-        uri:
-            "https://api.jikan.moe/v3/anime/" +
-            anime.mal_id +
-            "/recommendations",
-        json: true
-    };
-    return limiter.request(options).then(recDetails => {
-        let recs = [];
-        recDetails.body.recommendations.forEach(rec => {
-            if (rec.recommendation_count > 3) {
-                recs.push({
-                    mal_id: rec.mal_id,
-                    count: rec.recommendation_count
-                });
-            }
-        });
-        let recsJSON = JSON.stringify(recs);
-        let recObject = {
-            recommendations: recsJSON,
-            id: anime.mal_id
-        };
-        return db.updateAnimeRecs(recObject);
-    });
-};
+//
+// Get user recs based on populated data
+//
+app.get("/userReqs", function(req, res, next) {
+    recs = mal.getRecommendations(req.query.username);
+    res.status(200);
+    res.send(recs);
+});
 
-const getRecommendations = user => {
-    //select user list from db
-    showRecs = [];
-    weightedRecs = [];
+//
+// Generic Error capture
+//
+app.use(function(err, req, res, next) {
+    console.error(err);
+    res.type("plain/text");
+    res.status(500);
+    res.send("500 - Server Error");
+});
 
-    db.selectUserAnime(user)
-        .then(res => {
-            let promises = [];
-            let animeList = res.rows[0].list;
-            animeList.forEach(anime => {
-                showRecs.push({
-                    id: anime.mal_id,
-                    userScore: anime.score
-                });
-                promises.push(db.selectSpecAnime(anime.mal_id));
-            });
-
-            return Promise.all(promises);
-        })
-        .then(animeList => {
-            //combine show recommendation data + user score
-            animeList.forEach(anime => {
-                showRecs.forEach(show => {
-                    if (anime.rows[0].id == show.id) {
-                        show.recommendations = anime.rows[0].recommendations;
-                    }
-                });
-            });
-
-            //construct new weightedRecs list
-            //TODO Optimize this N^3 insert and lookup
-            showRecs.forEach(show => {
-                show.recommendations.forEach(rec => {
-                    temp = {
-                        id: rec.mal_id,
-                        weight: rec.count * show.userScore
-                    };
-                    found = false;
-                    weightedRecs.forEach(i => {
-                        if (temp.id == i.id) {
-                            i.weight += rec.count * show.userScore;
-                            found = true;
-                        }
-                    });
-                    if (found == false) {
-                        weightedRecs.push(temp);
-                    }
-                });
-            });
-
-            //remove any recs which have already been watched
-            animeList.forEach(anime => {
-                weightedRecs = weightedRecs.filter(
-                    rec => rec.id !== anime.rows[0].id
-                );
-            });
-
-            weightedRecs.sort(compareRecs);
-            console.log(weightedRecs);
-        })
-        .catch(err => {
-            console.log(err);
-        });
-};
-
-const compareRecs = (a, b) => {
-    if (a.weight > b.weight) {
-        return -1;
-    } else {
-        return 1;
-    }
-};
-
-// db.dropTableList();
-// db.dropTableAnime();
-setTimeout(() => {
-    // db.createTableList();
-    // db.createTableAnime();
-    // retrieveUserAnimeList("ulazlo");
-    // populateAnimeDB("uclazlo");
-    getRecommendations("ulazlo");
-}, 200);
+app.listen(app.get("port"), function() {
+    console.log(
+        "Server started on http://localhost:" +
+            app.get("port") +
+            "; press Ctrl-C to terminate."
+    );
+});
