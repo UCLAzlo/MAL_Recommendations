@@ -69,9 +69,14 @@ app.post("/userAnime", function(req, res, next) {
 // Get user recs based on populated data
 //
 app.get("/userReqs", function(req, res, next) {
-    recs = mal.getRecommendations(req.query.username);
-    res.status(200);
-    res.send(recs);
+    mal.getRecommendations(req.query.username)
+        .then(resp => {
+            res.status(200);
+            res.send(resp);
+        })
+        .catch(err => {
+            next(err);
+        });
 });
 
 //

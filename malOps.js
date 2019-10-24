@@ -96,12 +96,6 @@ const populateAnimeDB = user => {
                 return Promise.all(promises);
             })
     );
-    // .then(res => {
-    //     return Promise.resolve(1);
-    // })
-    // .catch(err => {
-    //     console.log(err);
-    // });
 };
 
 const updateRecommendations = anime => {
@@ -136,7 +130,8 @@ const getRecommendations = user => {
     showRecs = [];
     weightedRecs = [];
 
-    db.selectUserAnime(user)
+    return db
+        .selectUserAnime(user)
         .then(res => {
             let promises = [];
             let animeList = res.rows[0].list;
@@ -189,10 +184,7 @@ const getRecommendations = user => {
             });
 
             weightedRecs.sort(compareRecs);
-            return weightedRecs;
-        })
-        .catch(err => {
-            console.log(err);
+            return Promise.resolve(weightedRecs);
         });
 };
 

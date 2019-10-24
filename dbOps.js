@@ -19,7 +19,7 @@ const pool = new Pool({
 const createTableList = () => {
     const queryText = `CREATE TABLE IF NOT EXISTS
         userList(
-        username VARCHAR(64) NOT NULL,
+        username VARCHAR(64) NOT NULL PRIMARY KEY,
         list JSONB NOT NULL
     )`;
     console.log("Made list table");
@@ -70,7 +70,7 @@ const dropTableAnime = () => {
 //
 const insertList = (user, list) => {
     const queryText = `INSERT INTO userlist
-        VALUES ($1, $2) ON CONFLICT username DO NOTHING;`;
+        VALUES ($1, $2) ON CONFLICT DO NOTHING;`;
     const values = [user, list];
     return pool.query(queryText, values);
 };
