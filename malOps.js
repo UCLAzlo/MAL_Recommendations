@@ -10,10 +10,6 @@ const limiter = new RateLimiter({
     maxWaitingTime: 12000
 });
 
-// body parser
-// const bodyParser = require("body-parser");
-// app.use(bodyParser.json());
-
 //Postgres operations
 const db = require("./dbOps");
 
