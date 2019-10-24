@@ -45,7 +45,7 @@ const createTableAnime = () => {
         favorites INT NOT NULL,
         image VARCHAR(512) NOT NULL,
         genres INT[] NOT NULL,
-        recommendations JSONB NOT NULL
+        recommendations JSONB
     )`;
 
     pool.query(queryText)
@@ -108,7 +108,6 @@ const selectUserAnime = user => {
 // Retrieve user's completed anime list
 //
 const selectSpecAnime = mal_id => {
-    console.log(mal_id);
     const queryText = `SELECT * FROM animelist WHERE id = $1;`;
     const values = [mal_id];
     return pool.query(queryText, values);
@@ -118,8 +117,7 @@ const selectSpecAnime = mal_id => {
 // Retrieve user's completed anime list
 //
 const insertAnime = anime => {
-    // let anime = JSON.parse(animeJSON);
-    const queryText = `INSERT INTO animelist VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+    const queryText = `INSERT INTO animelist VALUES($1, $2, $3, $4, $5, $6, $7, $8) 
     ON CONFLICT DO NOTHING`;
     const values = [
         anime.id,
@@ -129,10 +127,18 @@ const insertAnime = anime => {
         anime.members,
         anime.favorites,
         anime.image,
-        anime.genres,
-        anime.recommendations
+        anime.genres
     ];
     console.log(values);
+    return pool.query(queryText, values);
+};
+
+//
+// Retrieve user's completed anime list
+//
+const updateAnimeRecs = anime => {
+    const queryText = `UPDATE animelist SET recommendations = $1 WHERE id = $2`;
+    const values = [anime.recommendations, anime.id];
     return pool.query(queryText, values);
 };
 
@@ -144,5 +150,6 @@ module.exports = {
     insertList,
     selectUserAnime,
     selectSpecAnime,
-    insertAnime
+    insertAnime,
+    updateAnimeRecs
 };

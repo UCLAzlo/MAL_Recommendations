@@ -69,13 +69,13 @@ const retrieveUserAnimeList = user => {
 //
 const populateAnimeDB = user => {
     //select user list from db
+    let animeList = [];
     db.selectUserAnime(user)
         .then(res => {
-            let animeList = res.rows[0].list;
+            animeList = res.rows[0].list;
             let promises = [];
             //for each anime in list, populate full details in anime db
             animeList.forEach(anime => {
-                let animeObject = {};
                 let options = {
                     uri: "https://api.jikan.moe/v3/anime/" + anime.mal_id,
                     json: true
@@ -84,65 +84,38 @@ const populateAnimeDB = user => {
             });
             return Promise.all(promises);
         })
-        .then(animeDetails => {
-            animeObject["id"] = animeDetails.body.mal_id;
-            animeObject["title"] = animeDetails.body.title;
-            animeObject["score"] = animeDetails.body.score;
-            animeObject["popularity"] = animeDetails.body.popularity;
-            animeObject["members"] = animeDetails.body.members;
-            animeObject["favorites"] = animeDetails.body.favorites;
-            animeObject["image"] = animeDetails.body.image_url;
+        .then(animeListDetails => {
+            let promises = [];
+            animeListDetails.forEach(anime => {
+                let animeObject = {};
+                animeObject["id"] = anime.body.mal_id;
+                animeObject["title"] = anime.body.title;
+                animeObject["score"] = anime.body.score;
+                animeObject["popularity"] = anime.body.popularity;
+                animeObject["members"] = anime.body.members;
+                animeObject["favorites"] = anime.body.favorites;
+                animeObject["image"] = anime.body.image_url;
 
-            let objectGenres = [];
-            animeDetails.body.genres.forEach(genre => {
-                objectGenres.push(genre.mal_id);
+                let objectGenres = [];
+                anime.body.genres.forEach(genre => {
+                    objectGenres.push(genre.mal_id);
+                });
+                animeObject["genres"] = objectGenres;
+
+                console.log(animeObject);
+
+                promises.push(db.insertAnime(animeObject));
             });
-            animeObject["genres"] = objectGenres;
 
-            let options = {
-                uri:
-                    "https://api.jikan.moe/v3/anime/" +
-                    anime.mal_id +
-                    "/recommendations",
-                json: true
-            };
-            return limiter.request(options);
+            return Promise.all(promises);
         })
-        //populate user recommendations for each anime
-        .then(recDetails => {
-            let recs = [];
-            recDetails.body.recommendations.forEach(rec => {
-                //only keep recommendations with significant count
-                if (rec.recommendation_count > 10) {
-                    recs.push({
-                        mal_id: rec.mal_id,
-                        count: rec.recommendation_count
-                    });
-                }
-            });
-            let recsJSON = JSON.stringify(recs);
-            animeObject["recommendations"] = recsJSON;
-            return db.insertAnime(animeObject);
-        })
-        //store anime details into anime db
-        .then(res => {
-            console.log(res);
-        })
-        .catch(err => {
-            console.log(err);
-        });
-};
-
-const getRecommendations = user => {
-    //select user list from db
-    db.selectUserAnime(user)
+        //request user recommendations for each anime
         .then(res => {
             let promises = [];
-            let animeList = res.rows[0].list;
             animeList.forEach(anime => {
-                promises.push(db.selectSpecAnime(anime.mal_id));
+                promises.push(updateRecommendations(anime));
             });
-
+            console.log(promises);
             return Promise.all(promises);
         })
         .then(res => {
@@ -153,12 +126,112 @@ const getRecommendations = user => {
         });
 };
 
+const updateRecommendations = anime => {
+    let options = {
+        uri:
+            "https://api.jikan.moe/v3/anime/" +
+            anime.mal_id +
+            "/recommendations",
+        json: true
+    };
+    return limiter.request(options).then(recDetails => {
+        let recs = [];
+        recDetails.body.recommendations.forEach(rec => {
+            if (rec.recommendation_count > 3) {
+                recs.push({
+                    mal_id: rec.mal_id,
+                    count: rec.recommendation_count
+                });
+            }
+        });
+        let recsJSON = JSON.stringify(recs);
+        let recObject = {
+            recommendations: recsJSON,
+            id: anime.mal_id
+        };
+        return db.updateAnimeRecs(recObject);
+    });
+};
+
+const getRecommendations = user => {
+    //select user list from db
+    showRecs = [];
+    weightedRecs = [];
+
+    db.selectUserAnime(user)
+        .then(res => {
+            let promises = [];
+            let animeList = res.rows[0].list;
+            animeList.forEach(anime => {
+                showRecs.push({
+                    id: anime.mal_id,
+                    userScore: anime.score
+                });
+                promises.push(db.selectSpecAnime(anime.mal_id));
+            });
+
+            return Promise.all(promises);
+        })
+        .then(animeList => {
+            //combine show recommendation data + user score
+            animeList.forEach(anime => {
+                showRecs.forEach(show => {
+                    if (anime.rows[0].id == show.id) {
+                        show.recommendations = anime.rows[0].recommendations;
+                    }
+                });
+            });
+
+            //construct new weightedRecs list
+            //TODO Optimize this N^3 insert and lookup
+            showRecs.forEach(show => {
+                show.recommendations.forEach(rec => {
+                    temp = {
+                        id: rec.mal_id,
+                        weight: rec.count * show.userScore
+                    };
+                    found = false;
+                    weightedRecs.forEach(i => {
+                        if (temp.id == i.id) {
+                            i.weight += rec.count * show.userScore;
+                            found = true;
+                        }
+                    });
+                    if (found == false) {
+                        weightedRecs.push(temp);
+                    }
+                });
+            });
+
+            //remove any recs which have already been watched
+            animeList.forEach(anime => {
+                weightedRecs = weightedRecs.filter(
+                    rec => rec.id !== anime.rows[0].id
+                );
+            });
+
+            weightedRecs.sort(compareRecs);
+            console.log(weightedRecs);
+        })
+        .catch(err => {
+            console.log(err);
+        });
+};
+
+const compareRecs = (a, b) => {
+    if (a.weight > b.weight) {
+        return -1;
+    } else {
+        return 1;
+    }
+};
+
 // db.dropTableList();
 // db.dropTableAnime();
 setTimeout(() => {
     // db.createTableList();
-    // retrieveUserAnimeList("uclazlo");
     // db.createTableAnime();
+    // retrieveUserAnimeList("ulazlo");
     // populateAnimeDB("uclazlo");
-    getRecommendations("uclazlo");
+    getRecommendations("ulazlo");
 }, 200);
